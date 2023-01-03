@@ -271,7 +271,7 @@ fn possible_moves(board: &Vec<Vec<types::Piece>>, x: u8, y: u8, current: &types:
                 if different_color(&board, x, y, x + 1, y) {
                     possible.push(Vec2::new((x + i) as f32, (y) as f32));
                 }
-            } if x as i8 >= 0 {
+            } if x as i8 - 1 >= 0 {
                 if different_color(&board, x, y, x - 1, y) {
                     possible.push(Vec2::new((x - i) as f32, (y) as f32));
                 }
