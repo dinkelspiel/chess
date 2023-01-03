@@ -3,6 +3,26 @@ use macroquad::prelude::*;
 mod types;
 mod parse;
 
+fn get_check(board: &Vec<Vec<types::Piece>>, current: &types::PieceColor) -> bool {
+    for (idx, _) in board.iter().enumerate() {
+        for (idx2, _) in board[idx].iter().enumerate() {
+            let moves = possible_moves(board, idx as u8, idx2 as u8, match current {
+                types::PieceColor::Black => &types::PieceColor::White,
+                _ => &types::PieceColor::Black
+            }, false);
+
+            for pmove in moves {
+                if pmove.x >= 0. && pmove.x < 8. && pmove.y >= 0. && pmove.y < 8. {
+                    if matches!(board[pmove.x as usize][pmove.y as usize], types::Piece::King(_)) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
 fn get_color(board: &Vec<Vec<types::Piece>>, x: u8, y: u8) -> Option<&types::PieceColor> {
     if !((x as i8 >= 0 && x < 8) && (y as i8 >= 0 && y < 8)) {
         return None;
@@ -44,7 +64,7 @@ fn different_color(board: &Vec<Vec<types::Piece>>, x1: u8, y1: u8, x2: u8, y2: u
     }
 }
 
-fn possible_moves(board: &Vec<Vec<types::Piece>>, x: u8, y: u8, current: &types::PieceColor) -> Vec<Vec2> {
+fn possible_moves(board: &Vec<Vec<types::Piece>>, x: u8, y: u8, current: &types::PieceColor, remove: bool) -> Vec<Vec2> {
     match &board[x as usize][y as usize] {
         types::Piece::Pawn(_color) | types::Piece::Rook(_color) | types::Piece::Knight(_color) | types::Piece::Bishop(_color) | types::Piece::Queen(_color) | types::Piece::King(_color) => {
             if matches!(*current, types::PieceColor::Black) && matches!(*_color, types::PieceColor::White) {
@@ -71,8 +91,10 @@ fn possible_moves(board: &Vec<Vec<types::Piece>>, x: u8, y: u8, current: &types:
                 }
             }
 
-            if matches!(&board[x as usize][(y as i8 + y_offset) as usize], types::Piece::Empty) {
-                possible.push(Vec2::new(x as f32, y as f32 + y_offset as f32));
+            if y as i8 + y_offset >= 0 {
+                if matches!(&board[x as usize][(y as i8 + y_offset) as usize], types::Piece::Empty) {
+                    possible.push(Vec2::new(x as f32, y as f32 + y_offset as f32));
+                }
             }
 
             for x_offset in [-1, 1] {
@@ -91,7 +113,7 @@ fn possible_moves(board: &Vec<Vec<types::Piece>>, x: u8, y: u8, current: &types:
         },
         types::Piece::Knight(_) => {
             if (x as i8 - 2 >= 0) && (y as i8 - 1 >= 0) {
-                if different_color(&board, x, y, x, y) {
+                if different_color(&board, x, y, x - 2, y - 1) {
                 possible.push(Vec2::new(x as f32 - 2., y as f32 - 1.));
                 }
             }
@@ -364,6 +386,21 @@ fn possible_moves(board: &Vec<Vec<types::Piece>>, x: u8, y: u8, current: &types:
         },
         _ => {}
     }
+    if remove {
+        let length = possible.len().clone();
+        for idx in (0..length).rev() {
+            let mut new_board: Vec<Vec<types::Piece>> = board.clone();
+    
+            if x as i8 >= 0 && x < 8 && y as i8 >= 0 && y < 8 && possible[idx].x >= 0. && possible[idx].x < 8. && possible[idx].y >= 0. && possible[idx].y < 8. {
+                new_board[possible[idx].x as usize][possible[idx].y as usize] = board[x as usize][y as usize];
+                new_board[x as usize][y as usize] = types::Piece::Empty;
+            }
+    
+            if get_check(&new_board, current) {
+                possible.remove(idx);
+            }
+        }
+    }
 
     possible
 }
@@ -371,15 +408,20 @@ fn possible_moves(board: &Vec<Vec<types::Piece>>, x: u8, y: u8, current: &types:
 #[macroquad::main("Chess")]
 async fn main() {
 
-    let background_color: Color = Color::from_rgba(251, 240, 240, 255);
-    let white_color: Color = Color::from_rgba(251, 240, 240, 255);
-    let black_color: Color = Color::from_rgba(124, 117, 117, 255);
+    //let background_color: Color = Color::from_rgba(251, 240, 240, 255);
+    //let white_color: Color = Color::from_rgba(251, 240, 240, 255);
+    //let black_color: Color = Color::from_rgba(124, 117, 117, 255);
 
+    let white_color: Color = Color::from_rgba(98, 104, 128, 255);
+    let background_color: Color = Color::from_rgba(48, 52, 70, 255);
+    let black_color: Color = Color::from_rgba(48, 52, 70, 255);
+    let checked_color: Color = Color::from_rgba(255, 89, 123, 120); 
     let selected_color: Color = Color::from_rgba(163, 187, 152, 120);
 
     let text_color: Color = Color::from_rgba(0, 0, 0, 60);
 
-    let mut board: Vec<Vec<types::Piece>> = parse::parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+    let arg = std::env::args().collect::<Vec<String>>();
+    let mut board: Vec<Vec<types::Piece>> = parse::parse_fen(if std::env::args().len() >= 2 {arg[1].as_str()} else {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"});
 
     let wking_tex = Texture2D::from_file_with_format(include_bytes!("../res/wking.png"), None);
     let wqueen_tex = Texture2D::from_file_with_format(include_bytes!("../res/wqueen.png"), None);
@@ -424,13 +466,17 @@ async fn main() {
                     selected = Some(Vec2::new(new_x, new_y));
                 }
             } else {
-                if !possible_moves(&board, selected.unwrap().x as u8, selected.unwrap().y as u8, &current_color).contains(&Vec2::new(new_x, new_y)) {
+                if !possible_moves(&board, selected.unwrap().x as u8, selected.unwrap().y as u8, &current_color, true).contains(&Vec2::new(new_x, new_y)) {
                     selected = None;
                     continue;
                 }
 
                 board[new_x as usize][new_y as usize] = board[selected.unwrap().x as usize][selected.unwrap().y as usize];
                 board[selected.unwrap().x as usize][selected.unwrap().y as usize] = types::Piece::Empty;
+
+                if ((new_y == 7. && matches!(current_color, types::PieceColor::Black)) || (new_y == 0. && matches!(current_color, types::PieceColor::White))) && matches!(board[new_x as usize][new_y as usize], types::Piece::Pawn(_)) {
+                    board[new_x as usize][new_y as usize] = types::Piece::Queen(current_color);
+                }
 
                 current_color = match current_color {
                     types::PieceColor::White => types::PieceColor::Black,
@@ -447,7 +493,7 @@ async fn main() {
                 draw_rectangle(x as f32 * (min_val / 8.) + x_offset, y as f32 * (min_val / 8.) + y_offset, min_val / 8., min_val / 8., if Vec2::new(x as f32, y as f32) == selected_unwrap {selected_color} else if (x+y)%2 == 0 {white_color} else {black_color});
 
                 if x==0 {
-                    draw_text((8 - y).to_string().as_str(), x as f32 * (min_val / 8.) + x_offset, (y + 1) as f32 * (min_val / 8.) - (min_val / 8.) + y_offset + 42.0, 64.0, text_color);
+                    //draw_text((8 - y).to_string().as_str(), x as f32 * (min_val / 8.) + x_offset, (y + 1) as f32 * (min_val / 8.) - (min_val / 8.) + y_offset + 42.0, 64.0, text_color);
                 }
 
                 if y==7 {
@@ -462,7 +508,7 @@ async fn main() {
                         7 => "h",
                         _ => "a"
                     };
-                    draw_text(letter, x as f32 * (min_val / 8.) + x_offset + (min_val / 8.) - 28., (y + 1) as f32 * (min_val / 8.) - (min_val / 8.) + y_offset + (min_val / 8.), 64.0, text_color);
+                    //draw_text(letter, x as f32 * (min_val / 8.) + x_offset + (min_val / 8.) - 28., (y + 1) as f32 * (min_val / 8.) - (min_val / 8.) + y_offset + (min_val / 8.), 64.0, text_color);
                 }
 
                 let side_px: f32 = min_val / 8.;
@@ -490,6 +536,23 @@ async fn main() {
                         draw_texture_ex(match color { types::PieceColor::Black => bqueen_tex, _ => wqueen_tex }, x_pos, y_pos, WHITE, draw_params);
                     },
                     types::Piece::King(color) => {
+                        let current_equals = match color {
+                            types::PieceColor::Black => match current_color {
+                                types::PieceColor::Black => true,
+                                types::PieceColor::White => false
+                            },
+                            types::PieceColor::White => match current_color {
+                                types::PieceColor::Black => false,
+                                types::PieceColor::White => true
+                            }
+                        };
+
+                        if current_equals{
+                            if get_check(&board, &current_color) {
+                                draw_rectangle(x_pos, y_pos, min_val / 8., min_val / 8., checked_color);
+                            }
+                        }
+
                         draw_texture_ex(match color { types::PieceColor::Black => bking_tex, _ => wking_tex }, x_pos, y_pos, WHITE, draw_params);
                     },
                     _ => {}
@@ -498,12 +561,17 @@ async fn main() {
         }
         
         if selected.is_some() {
-            let available_moves = possible_moves(&board, selected.unwrap().x as u8, selected.unwrap().y as u8, &current_color);
+            let available_moves = possible_moves(&board, selected.unwrap().x as u8, selected.unwrap().y as u8, &current_color, true);
 
             for x in available_moves {
                 draw_rectangle(x.x as f32 * (min_val / 8.) + x_offset, x.y as f32 * (min_val / 8.) + y_offset, min_val / 8., min_val / 8., selected_color);
             }
         }
+
+        match current_color {
+            types::PieceColor::Black => draw_text("Black's turn", 10., 32., 32., BLACK),
+            types::PieceColor::White => draw_text("White's turn", 10., 32., 32., WHITE),
+        };
 
         next_frame().await
     }
