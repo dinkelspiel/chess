@@ -1,0 +1,510 @@
+use macroquad::prelude::*;
+
+mod types;
+mod parse;
+
+fn get_color(board: &Vec<Vec<types::Piece>>, x: u8, y: u8) -> Option<&types::PieceColor> {
+    if !((x as i8 >= 0 && x < 8) && (y as i8 >= 0 && y < 8)) {
+        return None;
+    }
+
+     match &board[x as usize][y as usize] {
+        types::Piece::Pawn(_color) | types::Piece::Rook(_color) | types::Piece::Knight(_color) | types::Piece::Bishop(_color) | types::Piece::Queen(_color) | types::Piece::King(_color) => {
+            Some(_color)
+        },
+        types::Piece::Empty => None
+    }
+
+}
+
+fn different_color(board: &Vec<Vec<types::Piece>>, x1: u8, y1: u8, x2: u8, y2: u8) -> bool {
+    if get_color(&board, x1, y1).is_none() && get_color(&board, x2, y2).is_none() {
+        return false;
+    }
+    if get_color(&board, x2, y2).is_none() {
+        return true;
+    }
+    if get_color(&board, x1, y1).is_none() {
+        return true;
+    }
+
+    match get_color(&board, x1, y1).unwrap() {
+        types::PieceColor::Black => {
+            match get_color(&board, x2, y2).unwrap() {
+                types::PieceColor::Black => false,
+                types::PieceColor::White => true
+            }
+        },
+        types::PieceColor::White => {
+            match get_color(&board, x2, y2).unwrap() {
+                types::PieceColor::Black => true,
+                types::PieceColor::White => false
+            }
+        }
+    }
+}
+
+fn possible_moves(board: &Vec<Vec<types::Piece>>, x: u8, y: u8, current: &types::PieceColor) -> Vec<Vec2> {
+    match &board[x as usize][y as usize] {
+        types::Piece::Pawn(_color) | types::Piece::Rook(_color) | types::Piece::Knight(_color) | types::Piece::Bishop(_color) | types::Piece::Queen(_color) | types::Piece::King(_color) => {
+            if matches!(*current, types::PieceColor::Black) && matches!(*_color, types::PieceColor::White) {
+                return vec![];
+            }
+            if matches!(*current, types::PieceColor::White) && matches!(*_color, types::PieceColor::Black) {
+                return vec![];
+            }
+        },
+        types::Piece::Empty => {}
+    }
+
+    let mut possible: Vec<Vec2> = vec![];
+
+    match &board[x as usize][y as usize] {
+        types::Piece::Pawn(color) => {
+            let y_offset: i8 = if matches!(color, types::PieceColor::Black) {1} else {-1}; 
+
+            let is_at_start: bool = (matches!(color, types::PieceColor::White) && y == 6) || (matches!(color, types::PieceColor::Black) && y == 1);
+
+            if y as i8 + y_offset * 2 >= 0 && y as i8 + y_offset * 2 <= 8 {
+                if matches!(&board[x as usize][(y as i8 + y_offset * 2) as usize], types::Piece::Empty) && matches!(&board[x as usize][(y as i8 + y_offset) as usize], types::Piece::Empty) && is_at_start {
+                    possible.push(Vec2::new(x as f32, y as f32 + y_offset as f32 * 2.));
+                }
+            }
+
+            if matches!(&board[x as usize][(y as i8 + y_offset) as usize], types::Piece::Empty) {
+                possible.push(Vec2::new(x as f32, y as f32 + y_offset as f32));
+            }
+
+            for x_offset in [-1, 1] {
+                if !(x as i8 + x_offset >= 0 && x as i8 + x_offset < 8 && y as i8 + y_offset >= 0 && y as i8 + y_offset < 8) {
+                    continue;
+                }
+
+                if !matches!(&board[(x as i8 + x_offset) as usize][(y as i8 + y_offset) as usize], types::Piece::Empty) {
+
+                    let diff = different_color(&board, x, y, (x as i8 + x_offset) as u8, (y as i8 + y_offset) as u8);
+                    if diff {
+                        possible.push(Vec2::new((x as i8 + x_offset) as f32, (y as i8 + y_offset) as f32));
+                    }
+                }
+            }
+        },
+        types::Piece::Knight(_) => {
+            if (x as i8 - 2 >= 0) && (y as i8 - 1 >= 0) {
+                if different_color(&board, x, y, x, y) {
+                possible.push(Vec2::new(x as f32 - 2., y as f32 - 1.));
+                }
+            }
+            if (x as i8 - 1 >= 0) && (y as i8 - 2 >= 0) {
+                if different_color(&board, x, y, x - 1, y - 2) {
+                    possible.push(Vec2::new(x as f32 - 1., y as f32 - 2.));
+                }
+            }
+
+            if (x + 1 < 8) && (y as i8 - 2 >= 0) {
+                if different_color(&board, x, y, x + 1, y - 2) {
+                    possible.push(Vec2::new(x as f32 + 1., y as f32 - 2.));
+                }
+            }
+            if (x + 2 < 8) && (y as i8 - 1 >= 0) {
+                if different_color(&board, x, y, x + 2, y - 1) {
+                    possible.push(Vec2::new(x as f32 + 2., y as f32 - 1.));
+                }
+            }
+
+            if (x + 2 < 8) && (y + 1 < 8) {
+                if different_color(&board, x, y, x + 2, y + 1) {
+                    possible.push(Vec2::new(x as f32 + 2., y as f32 + 1.));
+                }
+            }
+            if (x + 1 < 8) && (y + 2 < 8) {
+                if different_color(&board, x, y, x + 1, y + 2) {
+                    possible.push(Vec2::new(x as f32 + 1., y as f32 + 2.));
+                }
+            }
+
+            if (x as i8 - 1 >= 0) && (y as i8 + 2 >= 0) {
+                if different_color(&board, x, y, x - 1, y + 2) {
+                    possible.push(Vec2::new(x as f32 - 1., y as f32 + 2.));
+                }
+            }
+            if (x as i8 - 2 >= 0) && (y + 1 < 8) {
+                if different_color(&board, x, y, x - 2, y + 1) {
+                    possible.push(Vec2::new(x as f32 - 2., y as f32 + 1.));
+                }
+            }
+
+        },
+        types::Piece::Rook(_) => {
+            for i in (0..x).rev() {
+                if get_color(&board, i as u8, y).is_some() {
+                    if different_color(&board, x, y, i, y) {
+                        possible.push(Vec2::new(i as f32, y as f32));
+                    }
+                    break;
+                }
+                possible.push(Vec2::new(i as f32, y as f32));
+            }
+
+            for i in (x + 1)..8 {
+                if get_color(&board, i as u8, y).is_some() {
+                    if different_color(&board, x, y, i, y) {
+                        possible.push(Vec2::new(i as f32, y as f32));
+                    }
+                    break;
+                }
+                possible.push(Vec2::new(i as f32, y as f32));
+            }
+
+            for i in (0..y).rev() {
+                if get_color(&board, x, i as u8).is_some() {
+                    if different_color(&board, x, y, x, i) {
+                        possible.push(Vec2::new(x as f32, i as f32));
+                    }
+                    break;
+                }
+                possible.push(Vec2::new(x as f32, i as f32));
+            }
+
+            for i in (y + 1)..8 {
+                if get_color(&board, x, i as u8).is_some() {
+                    if different_color(&board, x, y, x, i) {
+                        possible.push(Vec2::new(x as f32, i as f32));
+                    }
+                    break;
+                }
+                possible.push(Vec2::new(x as f32, i as f32));
+            }
+        },
+        types::Piece::Bishop(_) => {
+            for i in 1..8 {
+                if !(x + i < 8 && y + i < 8) {
+                    continue;
+                }
+                if get_color(&board, x + i, y + i).is_some() {
+                    if different_color(&board, x, y, x + i, y + i) {
+                        possible.push(Vec2::new((x + i) as f32, (y + i) as f32));
+                    }
+                    break;
+                }
+                possible.push(Vec2::new((x + i) as f32, (y + i) as f32));
+            }
+
+            for i in 1..8 {
+                if !(x as i8 - i >= 0 && y as i8 - i >= 0) {
+                    continue;
+                }
+                if get_color(&board, x - i as u8, y - i as u8).is_some() {
+                    if different_color(&board, x, y, x - i as u8, y - i as u8) {
+                        possible.push(Vec2::new((x - i as u8) as f32, (y - i as u8) as f32));
+                    }
+                    break;
+                }
+                possible.push(Vec2::new((x - i as u8) as f32, (y - i as u8) as f32));
+            }
+
+            for i in 1..8 {
+                if !(x as i8 + i < 8 && y as i8 - i >= 0) {
+                    continue;
+                }
+                if get_color(&board, x + i as u8, y - i as u8).is_some() {
+                    if different_color(&board, x, y, x + i as u8, y - i as u8) {
+                        possible.push(Vec2::new((x + i as u8) as f32, (y - i as u8) as f32));
+                    }
+                    break;
+                }
+                possible.push(Vec2::new((x + i as u8) as f32, (y - i as u8) as f32));
+            }
+
+            for i in 1..8 {
+                if !(x as i8 - i >= 0 && y as i8 + i < 8) {
+                    continue;
+                }
+                if get_color(&board, x - i as u8, y + i as u8).is_some() {
+                    if different_color(&board, x, y, x - i as u8, y + i as u8) {
+                        possible.push(Vec2::new((x - i as u8) as f32, (y + i as u8) as f32));
+                    }
+                    break;
+                }
+                possible.push(Vec2::new((x - i as u8) as f32, (y + i as u8) as f32));
+            }
+        },
+        types::Piece::King(_) => {
+            let i = 1;
+            if x + 1 < 8 && y + 1 < 8 {
+                if different_color(&board, x, y, x + 1, y + 1) {
+                    possible.push(Vec2::new((x + i) as f32, (y + i) as f32));
+                }
+            } if y + 1 < 8 {
+                if different_color(&board, x, y, x, y + i) {
+                    possible.push(Vec2::new((x) as f32, (y + i) as f32));
+                }
+            } if x as i8 - 1 >= 0 && y + 1 < 8 {
+                if different_color(&board, x, y, x - 1, y + 1) {
+                    possible.push(Vec2::new((x - i) as f32, (y + i) as f32));
+                }
+            }
+
+            if x + 1 < 8 {
+                if different_color(&board, x, y, x + 1, y) {
+                    possible.push(Vec2::new((x + i) as f32, (y) as f32));
+                }
+            } if x as i8 >= 0 {
+                if different_color(&board, x, y, x - 1, y) {
+                    possible.push(Vec2::new((x - i) as f32, (y) as f32));
+                }
+            }
+
+            if x + 1 < 8 && y as i8 - 1 >= 0 {
+                if different_color(&board, x, y, x + 1, y - 1) {
+                    possible.push(Vec2::new((x + i) as f32, (y - i) as f32));
+                }
+            } if y as i8 - 1 >= 0 {
+                if different_color(&board, x, y, x, y - 1) {
+                    possible.push(Vec2::new((x) as f32, (y - i) as f32));
+                }
+            } if x as i8 - 1 >= 0 && y as i8 - 1 >= 0 {
+                if different_color(&board, x, y, x - 1, y - 1) {
+                    possible.push(Vec2::new((x - i) as f32, (y - i) as f32));
+                }
+            }
+        },
+        types::Piece::Queen(_) => {
+            for i in 1..8 {
+                if !(x as i8 + i < 8 && y as i8 + i < 8) {
+                    continue;
+                }
+                if get_color(&board, x + i as u8, y + i as u8).is_some() {
+                    if different_color(&board, x, y, x + i as u8, y + i as u8) {
+                        possible.push(Vec2::new((x + i as u8) as f32, (y + i as u8) as f32));
+                    }
+                    break;
+                }
+                possible.push(Vec2::new((x + i as u8) as f32, (y + i as u8) as f32));
+            }
+
+            for i in 1..8 {
+                if !(x as i8 - i >= 0 && y as i8 - i >= 0) {
+                    continue;
+                }
+                if get_color(&board, x - i as u8, y - i as u8).is_some() {
+                    if different_color(&board, x, y, x - i as u8, y - i as u8) {
+                        possible.push(Vec2::new((x - i as u8) as f32, (y - i as u8) as f32));
+                    }
+                    break;
+                }
+                possible.push(Vec2::new((x - i as u8) as f32, (y - i as u8) as f32));
+            }
+
+            for i in 1..8 {
+                if !(x as i8 + i < 8 && y as i8 - i >= 0) {
+                    continue;
+                }
+                if get_color(&board, x + i as u8, y - i as u8).is_some() {
+                    if different_color(&board, x, y, x + i as u8, y - i as u8) {
+                        possible.push(Vec2::new((x + i as u8) as f32, (y - i as u8) as f32));
+                    }
+                    break;
+                }
+                possible.push(Vec2::new((x + i as u8) as f32, (y - i as u8) as f32));
+            }
+
+            for i in 1..8 {
+                if !(x as i8 - i >= 0 && y as i8 + i < 8) {
+                    continue;
+                }
+                if get_color(&board, x - i as u8, y + i as u8).is_some() {
+                    if different_color(&board, x, y, x - i as u8, y + i as u8) {
+                        possible.push(Vec2::new((x - i as u8) as f32, (y + i as u8) as f32));
+                    }
+                    break;
+                }
+                possible.push(Vec2::new((x - i as u8) as f32, (y + i as u8) as f32));
+            }
+
+            for i in (0..x).rev() {
+                if get_color(&board, i as u8, y).is_some() {
+                    if different_color(&board, x, y, i, y) {
+                        possible.push(Vec2::new(i as f32, y as f32));
+                    }
+                    break;
+                }
+                possible.push(Vec2::new(i as f32, y as f32));
+            }
+
+            for i in (x + 1)..8 {
+                if get_color(&board, i as u8, y).is_some() {
+                    if different_color(&board, x, y, i, y) {
+                        possible.push(Vec2::new(i as f32, y as f32));
+                    }
+                    break;
+                }
+                possible.push(Vec2::new(i as f32, y as f32));
+            }
+
+            for i in (0..y).rev() {
+                if get_color(&board, x, i as u8).is_some() {
+                    if different_color(&board, x, y, x, i) {
+                        possible.push(Vec2::new(x as f32, i as f32));
+                    }
+                    break;
+                }
+                possible.push(Vec2::new(x as f32, i as f32));
+            }
+
+            for i in (y + 1)..8 {
+                if get_color(&board, x, i as u8).is_some() {
+                    if different_color(&board, x, y, x, i) {
+                        possible.push(Vec2::new(x as f32, i as f32));
+                    }
+                    break;
+                }
+                possible.push(Vec2::new(x as f32, i as f32));
+            }
+        },
+        _ => {}
+    }
+
+    possible
+}
+
+#[macroquad::main("Chess")]
+async fn main() {
+
+    let background_color: Color = Color::from_rgba(251, 240, 240, 255);
+    let white_color: Color = Color::from_rgba(251, 240, 240, 255);
+    let black_color: Color = Color::from_rgba(124, 117, 117, 255);
+
+    let selected_color: Color = Color::from_rgba(163, 187, 152, 120);
+
+    let text_color: Color = Color::from_rgba(0, 0, 0, 60);
+
+    let mut board: Vec<Vec<types::Piece>> = parse::parse_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+
+    let wking_tex = Texture2D::from_file_with_format(include_bytes!("../res/wking.png"), None);
+    let wqueen_tex = Texture2D::from_file_with_format(include_bytes!("../res/wqueen.png"), None);
+    let wbishop_tex = Texture2D::from_file_with_format(include_bytes!("../res/wbishop.png"), None);
+    let wknight_tex = Texture2D::from_file_with_format(include_bytes!("../res/wknight.png"), None);
+    let wrook_tex = Texture2D::from_file_with_format(include_bytes!("../res/wrook.png"), None);
+    let wpawn_tex = Texture2D::from_file_with_format(include_bytes!("../res/wpawn.png"), None);
+    
+    let bking_tex = Texture2D::from_file_with_format(include_bytes!("../res/bking.png"), None);
+    let bqueen_tex = Texture2D::from_file_with_format(include_bytes!("../res/bqueen.png"), None);
+    let bbishop_tex = Texture2D::from_file_with_format(include_bytes!("../res/bbishop.png"), None);
+    let bknight_tex = Texture2D::from_file_with_format(include_bytes!("../res/bknight.png"), None);
+    let brook_tex = Texture2D::from_file_with_format(include_bytes!("../res/brook.png"), None);
+    let bpawn_tex = Texture2D::from_file_with_format(include_bytes!("../res/bpawn.png"), None);
+
+    let mut selected: Option<Vec2> = None;
+
+    let mut current_color: types::PieceColor = types::PieceColor::White;
+
+    loop {
+        clear_background(background_color);
+
+        let min_val: f32 = if screen_width() > screen_height() {screen_height()} else {screen_width()};
+
+        let x_offset: f32 = if screen_width() > screen_height() {(screen_width() - min_val) / 2.} else {0.};
+        let y_offset: f32 = if screen_height() > screen_width() {(screen_height() - min_val) / 2.} else {0.};
+
+        if is_mouse_button_pressed(MouseButton::Left) {
+            let mut new_x = mouse_position().0;
+            let mut new_y = mouse_position().1;
+
+            new_x -= x_offset;
+            new_y -= y_offset;
+
+            new_x = (new_x / (min_val / 8.)).floor() * (min_val / 8.) / (min_val / 8.);
+            new_y = (new_y / (min_val / 8.)).floor() * (min_val / 8.) / (min_val / 8.);
+
+            println!("({}, {})", new_x, new_y);
+
+            if selected.is_none()  {
+                if new_x >= 0. && new_x < 8. && new_y >= 0. && new_y < 8. {
+                    selected = Some(Vec2::new(new_x, new_y));
+                }
+            } else {
+                if !possible_moves(&board, selected.unwrap().x as u8, selected.unwrap().y as u8, &current_color).contains(&Vec2::new(new_x, new_y)) {
+                    selected = None;
+                    continue;
+                }
+
+                board[new_x as usize][new_y as usize] = board[selected.unwrap().x as usize][selected.unwrap().y as usize];
+                board[selected.unwrap().x as usize][selected.unwrap().y as usize] = types::Piece::Empty;
+
+                current_color = match current_color {
+                    types::PieceColor::White => types::PieceColor::Black,
+                    types::PieceColor::Black => types::PieceColor::White
+                };
+
+                selected = None;
+            }
+        }
+        
+        for x in 0..8 {
+            for y in 0..8 {
+                let selected_unwrap = if selected.is_some() {selected.unwrap()} else {Vec2::new(-1., -1.)};
+                draw_rectangle(x as f32 * (min_val / 8.) + x_offset, y as f32 * (min_val / 8.) + y_offset, min_val / 8., min_val / 8., if Vec2::new(x as f32, y as f32) == selected_unwrap {selected_color} else if (x+y)%2 == 0 {white_color} else {black_color});
+
+                if x==0 {
+                    draw_text((8 - y).to_string().as_str(), x as f32 * (min_val / 8.) + x_offset, (y + 1) as f32 * (min_val / 8.) - (min_val / 8.) + y_offset + 42.0, 64.0, text_color);
+                }
+
+                if y==7 {
+                   let letter: &str = match x {
+                        0 => "a",
+                        1 => "b",
+                        2 => "c",
+                        3 => "d",
+                        4 => "e",
+                        5 => "f",
+                        6 => "g",
+                        7 => "h",
+                        _ => "a"
+                    };
+                    draw_text(letter, x as f32 * (min_val / 8.) + x_offset + (min_val / 8.) - 28., (y + 1) as f32 * (min_val / 8.) - (min_val / 8.) + y_offset + (min_val / 8.), 64.0, text_color);
+                }
+
+                let side_px: f32 = min_val / 8.;
+                let dest_size: Vec2 = Vec2::new(side_px, side_px);
+                let draw_params: DrawTextureParams = DrawTextureParams {dest_size: Some(dest_size), ..Default::default()};
+
+                let x_pos = x as f32 * (min_val / 8.) + x_offset;
+                let y_pos = y as f32 * (min_val / 8.) + y_offset;
+
+                match &board[x][y] {
+                    types::Piece::Pawn(color) => {
+                        draw_texture_ex(match color { types::PieceColor::Black => bpawn_tex, _ => wpawn_tex }, x_pos, y_pos, WHITE, draw_params);
+
+                    },
+                    types::Piece::Rook(color) => {
+                        draw_texture_ex(match color { types::PieceColor::Black => brook_tex, _ => wrook_tex }, x_pos, y_pos, WHITE, draw_params);
+                    },
+                    types::Piece::Knight(color) => {
+                        draw_texture_ex(match color { types::PieceColor::Black => bknight_tex, _ => wknight_tex }, x_pos, y_pos, WHITE, draw_params);
+                    },
+                    types::Piece::Bishop(color) => {
+                        draw_texture_ex(match color { types::PieceColor::Black => bbishop_tex, _ => wbishop_tex }, x_pos, y_pos, WHITE, draw_params);
+                    },
+                    types::Piece::Queen(color) => {
+                        draw_texture_ex(match color { types::PieceColor::Black => bqueen_tex, _ => wqueen_tex }, x_pos, y_pos, WHITE, draw_params);
+                    },
+                    types::Piece::King(color) => {
+                        draw_texture_ex(match color { types::PieceColor::Black => bking_tex, _ => wking_tex }, x_pos, y_pos, WHITE, draw_params);
+                    },
+                    _ => {}
+                }
+            }
+        }
+        
+        if selected.is_some() {
+            let available_moves = possible_moves(&board, selected.unwrap().x as u8, selected.unwrap().y as u8, &current_color);
+
+            for x in available_moves {
+                draw_rectangle(x.x as f32 * (min_val / 8.) + x_offset, x.y as f32 * (min_val / 8.) + y_offset, min_val / 8., min_val / 8., selected_color);
+            }
+        }
+
+        next_frame().await
+    }
+}
