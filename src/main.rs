@@ -412,6 +412,8 @@ async fn main() {
     //let white_color: Color = Color::from_rgba(251, 240, 240, 255);
     //let black_color: Color = Color::from_rgba(124, 117, 117, 255);
 
+    let mut checkmate: Option<types::PieceColor> = None;
+
     let white_color: Color = Color::from_rgba(98, 104, 128, 255);
     let background_color: Color = Color::from_rgba(48, 52, 70, 255);
     let black_color: Color = Color::from_rgba(48, 52, 70, 255);
@@ -421,21 +423,20 @@ async fn main() {
     let text_color: Color = Color::from_rgba(0, 0, 0, 60);
 
     let arg = std::env::args().collect::<Vec<String>>();
-    let mut board: Vec<Vec<types::Piece>> = parse::parse_fen(if std::env::args().len() >= 2 {arg[1].as_str()} else {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"});
+    let mut board: Vec<Vec<types::Piece>> = parse::parse_fen(if std::env::args().len() >= 2 {arg[1].as_str()} else {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/QQQQKQQQ"});
 
-    let wking_tex = Texture2D::from_file_with_format(include_bytes!("../res/wking.png"), None);
-    let wqueen_tex = Texture2D::from_file_with_format(include_bytes!("../res/wqueen.png"), None);
-    let wbishop_tex = Texture2D::from_file_with_format(include_bytes!("../res/wbishop.png"), None);
-    let wknight_tex = Texture2D::from_file_with_format(include_bytes!("../res/wknight.png"), None);
-    let wrook_tex = Texture2D::from_file_with_format(include_bytes!("../res/wrook.png"), None);
-    let wpawn_tex = Texture2D::from_file_with_format(include_bytes!("../res/wpawn.png"), None);
-    
-    let bking_tex = Texture2D::from_file_with_format(include_bytes!("../res/bking.png"), None);
-    let bqueen_tex = Texture2D::from_file_with_format(include_bytes!("../res/bqueen.png"), None);
-    let bbishop_tex = Texture2D::from_file_with_format(include_bytes!("../res/bbishop.png"), None);
-    let bknight_tex = Texture2D::from_file_with_format(include_bytes!("../res/bknight.png"), None);
-    let brook_tex = Texture2D::from_file_with_format(include_bytes!("../res/brook.png"), None);
-    let bpawn_tex = Texture2D::from_file_with_format(include_bytes!("../res/bpawn.png"), None);
+    let wking_tex = load_texture("res/wking.png").await.unwrap();
+    let wqueen_tex = load_texture("res/wqueen.png").await.unwrap();
+    let wbishop_tex = load_texture("res/wbishop.png").await.unwrap();
+    let wknight_tex = load_texture("res/wknight.png").await.unwrap();
+    let wrook_tex = load_texture("res/wrook.png").await.unwrap();
+    let wpawn_tex = load_texture("res/wpawn.png").await.unwrap();
+    let bking_tex = load_texture("res/bking.png").await.unwrap();
+    let bqueen_tex = load_texture("res/bqueen.png").await.unwrap();
+    let bbishop_tex = load_texture("res/bbishop.png").await.unwrap();
+    let bknight_tex = load_texture("res/bknight.png").await.unwrap();
+    let brook_tex = load_texture("res/brook.png").await.unwrap();
+    let bpawn_tex = load_texture("res/bpawn.png").await.unwrap();
 
     let mut selected: Option<Vec2> = None;
 
@@ -449,7 +450,7 @@ async fn main() {
         let x_offset: f32 = if screen_width() > screen_height() {(screen_width() - min_val) / 2.} else {0.};
         let y_offset: f32 = if screen_height() > screen_width() {(screen_height() - min_val) / 2.} else {0.};
 
-        if is_mouse_button_pressed(MouseButton::Left) {
+        if is_mouse_button_pressed(MouseButton::Left) && checkmate.is_none() {
             let mut new_x = mouse_position().0;
             let mut new_y = mouse_position().1;
 
@@ -473,6 +474,33 @@ async fn main() {
 
                 board[new_x as usize][new_y as usize] = board[selected.unwrap().x as usize][selected.unwrap().y as usize];
                 board[selected.unwrap().x as usize][selected.unwrap().y as usize] = types::Piece::Empty;
+
+                let mut black_possible = 0;
+                let mut white_possible = 0;
+
+                for x in 0..board.len() {
+                    for y in 0..board[x].len() {
+                        match &board[x][y] {
+                            types::Piece::Pawn(_color) | types::Piece::Rook(_color) | types::Piece::Knight(_color) | types::Piece::Bishop(_color) | types::Piece::Queen(_color) | types::Piece::King(_color) => {
+                                if matches!(_color, types::PieceColor::Black) {
+                                    let col = types::PieceColor::Black;
+                                    black_possible += possible_moves(&board, x as u8, y as u8, &col, true).len();
+                                } else {
+                                    let col = types::PieceColor::White;
+                                    white_possible += possible_moves(&board, x as u8, y as u8, &col, true).len();
+                                }
+                            },
+                            types::Piece::Empty => {}
+                        }
+                    }
+                }
+
+                if black_possible == 0 {
+                    checkmate = Some(types::PieceColor::White);
+                }
+                if white_possible == 0 {
+                    checkmate = Some(types::PieceColor::Black);
+                }
 
                 if ((new_y == 7. && matches!(current_color, types::PieceColor::Black)) || (new_y == 0. && matches!(current_color, types::PieceColor::White))) && matches!(board[new_x as usize][new_y as usize], types::Piece::Pawn(_)) {
                     board[new_x as usize][new_y as usize] = types::Piece::Queen(current_color);
@@ -572,6 +600,13 @@ async fn main() {
             types::PieceColor::Black => draw_text("Black's turn", 10., 32., 32., BLACK),
             types::PieceColor::White => draw_text("White's turn", 10., 32., 32., WHITE),
         };
+
+        if checkmate.is_some() {
+            draw_text(match checkmate.unwrap() {
+                types::PieceColor::Black => "Black Wins!",
+                types::PieceColor::White => "White Wins!"
+            }, 10., 82., 64., WHITE);
+        }
 
         next_frame().await
     }
