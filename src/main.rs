@@ -431,6 +431,7 @@ async fn main() {
     let wknight_tex = load_texture("res/wknight.png").await.unwrap();
     let wrook_tex = load_texture("res/wrook.png").await.unwrap();
     let wpawn_tex = load_texture("res/wpawn.png").await.unwrap();
+
     let bking_tex = load_texture("res/bking.png").await.unwrap();
     let bqueen_tex = load_texture("res/bqueen.png").await.unwrap();
     let bbishop_tex = load_texture("res/bbishop.png").await.unwrap();
@@ -438,7 +439,10 @@ async fn main() {
     let brook_tex = load_texture("res/brook.png").await.unwrap();
     let bpawn_tex = load_texture("res/bpawn.png").await.unwrap();
 
+    let movedfrom_tex = load_texture("res/movedfrom.png").await.unwrap();
+
     let mut selected: Option<Vec2> = None;
+    let mut last_selected: Option<Vec2> = None;
 
     let mut current_color: types::PieceColor = types::PieceColor::White;
 
@@ -465,13 +469,14 @@ async fn main() {
             if selected.is_none()  {
                 if new_x >= 0. && new_x < 8. && new_y >= 0. && new_y < 8. {
                     selected = Some(Vec2::new(new_x, new_y));
+                    last_selected = None;
                 }
             } else {
                 if !possible_moves(&board, selected.unwrap().x as u8, selected.unwrap().y as u8, &current_color, true).contains(&Vec2::new(new_x, new_y)) {
                     selected = None;
                     continue;
                 }
-
+                
                 board[new_x as usize][new_y as usize] = board[selected.unwrap().x as usize][selected.unwrap().y as usize];
                 board[selected.unwrap().x as usize][selected.unwrap().y as usize] = types::Piece::Empty;
 
@@ -511,14 +516,15 @@ async fn main() {
                     types::PieceColor::Black => types::PieceColor::White
                 };
 
-                selected = None;
+                last_selected = Some(Vec2::new(selected.unwrap().x, selected.unwrap().y));
+                selected = Some(Vec2::new(new_x, new_y));
             }
         }
-        
+
         for x in 0..8 {
             for y in 0..8 {
                 let selected_unwrap = if selected.is_some() {selected.unwrap()} else {Vec2::new(-1., -1.)};
-                draw_rectangle(x as f32 * (min_val / 8.) + x_offset, y as f32 * (min_val / 8.) + y_offset, min_val / 8., min_val / 8., if Vec2::new(x as f32, y as f32) == selected_unwrap {selected_color} else if (x+y)%2 == 0 {white_color} else {black_color});
+                draw_rectangle(x as f32 * (min_val / 8.) + x_offset, y as f32 * (min_val / 8.) + y_offset, min_val / 8., min_val / 8., if (x+y)%2 == 0 {white_color} else {black_color});
 
                 if x==0 {
                     //draw_text((8 - y).to_string().as_str(), x as f32 * (min_val / 8.) + x_offset, (y + 1) as f32 * (min_val / 8.) - (min_val / 8.) + y_offset + 42.0, 64.0, text_color);
@@ -545,6 +551,18 @@ async fn main() {
 
                 let x_pos = x as f32 * (min_val / 8.) + x_offset;
                 let y_pos = y as f32 * (min_val / 8.) + y_offset;
+
+                if last_selected.is_some() {
+                    if last_selected.unwrap() == Vec2::new(x as f32, y as f32) {
+                        draw_texture_ex(movedfrom_tex, x_pos, y_pos, WHITE, draw_params.clone());
+                    }
+                }
+
+                if selected.is_some() {
+                    if selected.unwrap() == Vec2::new(x as f32, y as f32) {
+                        draw_rectangle(x as f32 * (min_val / 8.) + x_offset, y as f32 * (min_val / 8.) + y_offset, min_val / 8., min_val / 8., selected_color);
+                    }
+                }
 
                 match &board[x][y] {
                     types::Piece::Pawn(color) => {
@@ -587,7 +605,7 @@ async fn main() {
                 }
             }
         }
-        
+
         if selected.is_some() {
             let available_moves = possible_moves(&board, selected.unwrap().x as u8, selected.unwrap().y as u8, &current_color, true);
 
