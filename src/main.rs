@@ -85,7 +85,7 @@ fn possible_moves(board: &Vec<Vec<types::Piece>>, x: u8, y: u8, current: &types:
 
             let is_at_start: bool = (matches!(color, types::PieceColor::White) && y == 6) || (matches!(color, types::PieceColor::Black) && y == 1);
 
-            if y as i8 + y_offset * 2 >= 0 && y as i8 + y_offset * 2 <= 8 {
+            if y as i8 + y_offset * 2 >= 0 && y as i8 + y_offset * 2 < 8 {
                 if matches!(&board[x as usize][(y as i8 + y_offset * 2) as usize], types::Piece::Empty) && matches!(&board[x as usize][(y as i8 + y_offset) as usize], types::Piece::Empty) && is_at_start {
                     possible.push(Vec2::new(x as f32, y as f32 + y_offset as f32 * 2.));
                 }
@@ -422,8 +422,11 @@ async fn main() {
 
     let text_color: Color = Color::from_rgba(0, 0, 0, 60);
 
+    let fenstring_start: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
+    //let fenstring_start: &str = "4k3/8/8/8/8/8/8/QQQQKQQQ";
+
     let arg = std::env::args().collect::<Vec<String>>();
-    let mut board: Vec<Vec<types::Piece>> = parse::parse_fen(if std::env::args().len() >= 2 {arg[1].as_str()} else {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/QQQQKQQQ"});
+    let mut board: Vec<Vec<types::Piece>> = parse::parse_fen(if std::env::args().len() >= 2 {arg[1].as_str()} else {fenstring_start});
 
     let wking_tex = load_texture("res/wking.png").await.unwrap();
     let wqueen_tex = load_texture("res/wqueen.png").await.unwrap();
@@ -454,6 +457,14 @@ async fn main() {
         let x_offset: f32 = if screen_width() > screen_height() {(screen_width() - min_val) / 2.} else {0.};
         let y_offset: f32 = if screen_height() > screen_width() {(screen_height() - min_val) / 2.} else {0.};
 
+        if is_mouse_button_pressed(MouseButton::Right) && checkmate.is_some() {
+            checkmate = None;
+            board = parse::parse_fen(fenstring_start);
+            selected = None;
+            last_selected = None;
+            current_color = types::PieceColor::White;
+        }
+
         if is_mouse_button_pressed(MouseButton::Left) && checkmate.is_none() {
             let mut new_x = mouse_position().0;
             let mut new_y = mouse_position().1;
@@ -480,6 +491,10 @@ async fn main() {
                 board[new_x as usize][new_y as usize] = board[selected.unwrap().x as usize][selected.unwrap().y as usize];
                 board[selected.unwrap().x as usize][selected.unwrap().y as usize] = types::Piece::Empty;
 
+                if ((new_y == 7. && matches!(current_color, types::PieceColor::Black)) || (new_y == 0. && matches!(current_color, types::PieceColor::White))) && matches!(board[new_x as usize][new_y as usize], types::Piece::Pawn(_)) {
+                    board[new_x as usize][new_y as usize] = types::Piece::Queen(current_color);
+                }
+
                 let mut black_possible = 0;
                 let mut white_possible = 0;
 
@@ -505,10 +520,6 @@ async fn main() {
                 }
                 if white_possible == 0 {
                     checkmate = Some(types::PieceColor::Black);
-                }
-
-                if ((new_y == 7. && matches!(current_color, types::PieceColor::Black)) || (new_y == 0. && matches!(current_color, types::PieceColor::White))) && matches!(board[new_x as usize][new_y as usize], types::Piece::Pawn(_)) {
-                    board[new_x as usize][new_y as usize] = types::Piece::Queen(current_color);
                 }
 
                 current_color = match current_color {
@@ -614,17 +625,53 @@ async fn main() {
             }
         }
 
-        match current_color {
-            types::PieceColor::Black => draw_text("Black's turn", 10., 32., 32., BLACK),
-            types::PieceColor::White => draw_text("White's turn", 10., 32., 32., WHITE),
-        };
+        let render_target = render_target(400, 400);
+        render_target.texture.set_filter(FilterMode::Linear);
+
+        set_camera(&Camera2D {
+            zoom: vec2(0.005, 0.005),
+            target: vec2(0.0, 0.0),
+            render_target: Some(render_target),
+            ..Default::default()
+        });
+    
+        if checkmate.is_none() {
+            match current_color {
+                types::PieceColor::Black => draw_text("Black's turn", -190., -170., 32., BLACK),
+                types::PieceColor::White => draw_text("White's turn", -190., -170., 32., WHITE),
+
+            };
+        }
 
         if checkmate.is_some() {
             draw_text(match checkmate.unwrap() {
                 types::PieceColor::Black => "Black Wins!",
                 types::PieceColor::White => "White Wins!"
-            }, 10., 82., 64., WHITE);
+            }, -190., -160., 64., WHITE);
+            draw_text("Press to restart", -190., -130., 32., WHITE);
         }
+
+        set_default_camera();
+
+        draw_texture_ex(
+            render_target.texture,
+            0., 0.,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(Vec2::new(400., 400.)),
+                ..Default::default()
+            }
+        );
+
+        draw_texture_ex(
+            render_target.texture,
+            screen_width(), screen_height(),
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(Vec2::new(-400., -400.)),
+                ..Default::default()
+            }
+        );
 
         next_frame().await
     }
