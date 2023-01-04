@@ -2,6 +2,9 @@ use macroquad::prelude::*;
 
 mod types;
 mod parse;
+mod textures;
+
+use crate::textures::*;
 
 fn get_check(board: &Vec<Vec<types::Piece>>, current: &types::PieceColor) -> bool {
     for (idx, _) in board.iter().enumerate() {
@@ -425,21 +428,23 @@ async fn main() {
     let arg = std::env::args().collect::<Vec<String>>();
     let mut board: Vec<Vec<types::Piece>> = parse::parse_fen(if std::env::args().len() >= 2 {arg[1].as_str()} else {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/QQQQKQQQ"});
 
-    let wking_tex = load_texture("res/wking.png").await.unwrap();
-    let wqueen_tex = load_texture("res/wqueen.png").await.unwrap();
-    let wbishop_tex = load_texture("res/wbishop.png").await.unwrap();
-    let wknight_tex = load_texture("res/wknight.png").await.unwrap();
-    let wrook_tex = load_texture("res/wrook.png").await.unwrap();
-    let wpawn_tex = load_texture("res/wpawn.png").await.unwrap();
+    let wking_tex = Texture2D::from_file_with_format(&get_wking_texture(), None);
+    let wqueen_tex = Texture2D::from_file_with_format(&get_wqueen_texture(), None);
+    let wbishop_tex = Texture2D::from_file_with_format(&get_wbishop_texture(), None);
+    let wknight_tex = Texture2D::from_file_with_format(&get_wknight_texture(), None);
+    let wrook_tex = Texture2D::from_file_with_format(&get_wrook_texture(), None);
+    let wpawn_tex = Texture2D::from_file_with_format(&get_wpawn_texture(), None);
 
-    let bking_tex = load_texture("res/bking.png").await.unwrap();
-    let bqueen_tex = load_texture("res/bqueen.png").await.unwrap();
-    let bbishop_tex = load_texture("res/bbishop.png").await.unwrap();
-    let bknight_tex = load_texture("res/bknight.png").await.unwrap();
-    let brook_tex = load_texture("res/brook.png").await.unwrap();
-    let bpawn_tex = load_texture("res/bpawn.png").await.unwrap();
+    let bking_tex = Texture2D::from_file_with_format(&get_bking_texture(), None);
+    let bqueen_tex = Texture2D::from_file_with_format(&get_bqueen_texture(), None);
+    let bbishop_tex = Texture2D::from_file_with_format(&get_bbishop_texture(), None);
+    let bknight_tex = Texture2D::from_file_with_format(&get_bknight_texture(), None);
+    let brook_tex = Texture2D::from_file_with_format(&get_brook_texture(), None);
+    let bpawn_tex = Texture2D::from_file_with_format(&get_bpawn_texture(), None);
 
-    let movedfrom_tex = load_texture("res/movedfrom.png").await.unwrap();
+    // println!("{:?}", include_bytes!("../res/movedfrom.png"));
+
+    let movedfrom_tex = Texture2D::from_file_with_format(&get_movedfrom_texture(), None);
 
     let mut selected: Option<Vec2> = None;
     let mut last_selected: Option<Vec2> = None;
