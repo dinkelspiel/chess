@@ -614,17 +614,53 @@ async fn main() {
             }
         }
 
-        match current_color {
-            types::PieceColor::Black => draw_text("Black's turn", 10., 32., 32., BLACK),
-            types::PieceColor::White => draw_text("White's turn", 10., 32., 32., WHITE),
-        };
+let render_target = render_target(400, 400);
+        render_target.texture.set_filter(FilterMode::Linear);
+
+        set_camera(&Camera2D {
+            zoom: vec2(0.005, 0.005),
+            target: vec2(0.0, 0.0),
+            render_target: Some(render_target),
+            ..Default::default()
+        });
+    
+        if checkmate.is_none() {
+            match current_color {
+                types::PieceColor::Black => draw_text("Black's turn", -190., -170., 32., BLACK),
+                types::PieceColor::White => draw_text("White's turn", -190., -170., 32., WHITE),
+
+            };
+        }
 
         if checkmate.is_some() {
             draw_text(match checkmate.unwrap() {
                 types::PieceColor::Black => "Black Wins!",
                 types::PieceColor::White => "White Wins!"
-            }, 10., 82., 64., WHITE);
+            }, -190., -160., 64., WHITE);
+            draw_text("Press to restart", -190., -130., 32., WHITE);
         }
+
+        set_default_camera();
+
+        draw_texture_ex(
+            render_target.texture,
+            0., 0.,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(Vec2::new(400., 400.)),
+                ..Default::default()
+            }
+        );
+
+        draw_texture_ex(
+            render_target.texture,
+            screen_width(), screen_height(),
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(Vec2::new(-400., -400.)),
+                ..Default::default()
+            }
+        );
 
         next_frame().await
     }
