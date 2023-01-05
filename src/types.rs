@@ -1,6 +1,3 @@
-use std::fmt;
-
-
 #[derive(Copy, Clone)]
 pub enum PieceColor {
     Black,
